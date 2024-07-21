@@ -9,7 +9,8 @@ function newMatch(playerA, playerB) {
         idA : playerA.id,
         idB : playerB.id,
         turn : Math.random() < 0.5 ? playerA.id : playerB.id,
-        table : creatBlankTable(8,8),
+        tableSize: { m:8 , n:8 },
+        move : [],
         tick: 'X'
     }
 

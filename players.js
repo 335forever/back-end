@@ -1,10 +1,10 @@
 const players = {}
 
-function newPlayer(playerInfo) {
-    players[playerInfo.id] = {
-        ...playerInfo
+function newPlayer(playerInfor) {
+    players[playerInfor.id] = {
+        ...playerInfor
     }
-    return playerInfo.id;
+    return playerInfor.id;
 }
 
 function removePlayer(playerId) {

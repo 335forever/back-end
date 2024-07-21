@@ -27,24 +27,63 @@ wss.on('connection', (ws) => {
       const messageObj = JSON.parse(message.toString());
       const action = messageObj.action;
       const data = messageObj.data;
+      console.log('v-------------> REQUEST FROM CLIENT:', action, '<-------------v');
 
       if (action == 'login') {
-        const playerInfo = {
+        const playerInfor = {
           id : clientId,
           ...data,
           starNum : 100
         };
 
-        newPlayer(playerInfo);
+        newPlayer(playerInfor);
 
-        console.log(`Player login: ${playerInfo.playerName}`);
+        console.log(`Player login: ${playerInfor.playerName}`);
 
-        // Trả ID cho client mới login
-        ws.send(JSON.stringify({ type: 'assign', data: playerInfo}));
+        // Trả thông tin khởi tạo cho client mới login
+        ws.send(JSON.stringify({ type: 'assign', data: playerInfor}));
         
         // Cập nhật số người đang online cho tất cả client
         for (const id in clients) {
           clients[id].send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
+        }
+      }
+
+      if (action == 'find') {
+        const playerInfor = data;
+        
+        if (!waitingChair) {
+          waitingChair = playerInfor;
+          console.log('A player waiting');
+        }
+        else {
+          console.log('B player login');
+          
+          if (clients[waitingChair.id]) {
+            console.log('Matched');
+
+            const matchId = newMatch(waitingChair, playerInfor);
+
+            const matchStatus = {
+              matchId : matchId,
+              turn : matches[matchId].turn,
+              tableSize : matches[matchId].tableSize,
+              move : matches[matchId].move,
+              tick : matches[matchId].tick
+            }
+            
+            ws.send(JSON.stringify({ type: 'match_start', data : {enemyInfor: waitingChair, matchStatus} }));
+            clients[waitingChair.id].send(JSON.stringify({ type: 'match_start', data : {enemyInfor: playerInfor, matchStatus} }));
+            
+            waitingChair = null;
+          } 
+        }
+      }
+
+      if (action == 'exit_find') {
+        if (waitingChair && waitingChair.id == clientId) {
+          waitingChair = null;
+          console.log('A player stop waiting')
         }
       }
 
@@ -61,7 +100,7 @@ wss.on('connection', (ws) => {
 
             const message = {
               type : 'match_update',
-              match_status : {
+              matchStatus : {
                 table : matches[data.matchId].table,
                 turn : matches[data.matchId].turn,
                 tick : matches[data.matchId].tick,
@@ -72,48 +111,9 @@ wss.on('connection', (ws) => {
             clients[matches[data.matchId].idA].send(JSON.stringify(message));
             clients[matches[data.matchId].idB].send(JSON.stringify(message));
 
-
           }
         }
       }
-
-      if (action == 'find') {
-        const playerInfo = data;
-        
-        if (!waitingChair) {
-          waitingChair = playerInfo;
-          console.log('A player waiting');
-        }
-        else {
-          console.log('B player login');
-          
-          if (clients[waitingChair.id]) {
-            console.log('Matched');
-
-            const matchId = newMatch(waitingChair, playerInfo);
-
-            const match_status = {
-              id : matchId,
-              turn : matches[matchId].turn,
-              table : matches[matchId].table,
-              tick : matches[matchId].tick
-            }
-            
-            ws.send(JSON.stringify({ type: 'match_start', enemy_info: waitingChair, match_status }));
-            clients[waitingChair.id].send(JSON.stringify({ type: 'match_start', enemy_info: playerInfo, match_status }));
-            
-            waitingChair = null;
-          } 
-        }
-      }
-
-      if (action == 'exit-find') {
-        if (waitingChair && waitingChair.id == data.playerId) {
-          waitingChair = null;
-          console.log('A player stop waiting')
-        }
-      }
-
     });
 
     ws.on('close', () => {
