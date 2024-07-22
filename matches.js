@@ -8,10 +8,10 @@ function newMatch(playerA, playerB) {
     matches[matchId] = {
         idA : playerA.id,
         idB : playerB.id,
-        turn : Math.random() < 0.5 ? playerA.id : playerB.id,
+        nextTurn : Math.random() < 0.5 ? playerA.id : playerB.id,
         tableSize: { m:8 , n:8 },
         move : [],
-        tick: 'X'
+        nextMark: 'X'
     }
 
     return matchId;

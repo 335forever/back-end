@@ -12,7 +12,7 @@ const wss = new WebSocket.Server({ port: process.env.WS_PORT });
 const clients = {};
 
 wss.on('connection', (ws) => {
-    ws.send(JSON.stringify({type: 'msg', data: 'Welcome to TTT game!'}));
+    ws.send(JSON.stringify({ id : uuidv4(), type: 'msg', data: 'Welcome to TTT game!'}));
 
     // Sinh ra một ID duy nhất cho mỗi client
     const clientId = uuidv4();
@@ -20,7 +20,7 @@ wss.on('connection', (ws) => {
     console.log(`Client connected: ${clientId}`);
 
     // Cập nhật số người đang online 
-    ws.send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
+    ws.send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
 
     // Lắng nghe tin nhắn từ client
     ws.on('message', function incoming(message) {
@@ -35,17 +35,17 @@ wss.on('connection', (ws) => {
           ...data,
           starNum : 100
         };
-
+        
         newPlayer(playerInfor);
 
         console.log(`Player login: ${playerInfor.playerName}`);
 
         // Trả thông tin khởi tạo cho client mới login
-        ws.send(JSON.stringify({ type: 'assign', data: playerInfor}));
+        ws.send(JSON.stringify({ id : uuidv4(), type: 'assign', data: playerInfor}));
         
         // Cập nhật số người đang online cho tất cả client
         for (const id in clients) {
-          clients[id].send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
+          clients[id].send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
         }
       }
 
@@ -66,14 +66,14 @@ wss.on('connection', (ws) => {
 
             const matchStatus = {
               matchId : matchId,
-              turn : matches[matchId].turn,
+              nextTurn : matches[matchId].nextTurn,
               tableSize : matches[matchId].tableSize,
-              move : matches[matchId].move,
-              tick : matches[matchId].tick
+              moved : matches[matchId].move,
+              nextMark : matches[matchId].nextMark
             }
             
-            ws.send(JSON.stringify({ type: 'match_start', data : {enemyInfor: waitingChair, matchStatus} }));
-            clients[waitingChair.id].send(JSON.stringify({ type: 'match_start', data : {enemyInfor: playerInfor, matchStatus} }));
+            ws.send(JSON.stringify({ id : uuidv4(), type: 'match_start', data : {enemyInfor: waitingChair, matchStatus} }));
+            clients[waitingChair.id].send(JSON.stringify({ id : uuidv4(), type: 'match_start', data : {enemyInfor: playerInfor, matchStatus} }));
             
             waitingChair = null;
           } 
@@ -99,6 +99,7 @@ wss.on('connection', (ws) => {
             const winnerId = checkWin(data.matchId, data.position, 5) ? data.playerId : null;
 
             const message = {
+              id : uuidv4(),
               type : 'match_update',
               matchStatus : {
                 table : matches[data.matchId].table,
@@ -142,7 +143,7 @@ wss.on('connection', (ws) => {
 
       // Cập nhật số người đang online cho tất cả client
       for (const id in clients) {
-        clients[id].send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
+        clients[id].send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
       }
     });
 
