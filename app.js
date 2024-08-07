@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
-const { matches, newMatch, removeMatch, findEnemyId, findMatch, checkWin} = require('./matches')
+const { matches, newMatch, removeMatch, findEnemyId, findMatch, checkWin, getCell} = require('./matches')
 const { players, newPlayer, removePlayer} = require('./players')
 
 var waitingChair = null;
@@ -12,7 +12,7 @@ const wss = new WebSocket.Server({ port: process.env.WS_PORT });
 const clients = {};
 
 wss.on('connection', (ws) => {
-    ws.send(JSON.stringify({ id : uuidv4(), type: 'msg', data: 'Welcome to TTT game!'}));
+    ws.send(JSON.stringify({ type: 'msg', data: 'Welcome to TTT game!'}));
 
     // Sinh ra một ID duy nhất cho mỗi client
     const clientId = uuidv4();
@@ -20,7 +20,7 @@ wss.on('connection', (ws) => {
     console.log(`Client connected: ${clientId}`);
 
     // Cập nhật số người đang online 
-    ws.send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
+    ws.send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
 
     // Lắng nghe tin nhắn từ client
     ws.on('message', function incoming(message) {
@@ -33,7 +33,7 @@ wss.on('connection', (ws) => {
         const playerInfor = {
           id : clientId,
           ...data,
-          starNum : 100
+          starNum : 1000
         };
         
         newPlayer(playerInfor);
@@ -41,11 +41,11 @@ wss.on('connection', (ws) => {
         console.log(`Player login: ${playerInfor.playerName}`);
 
         // Trả thông tin khởi tạo cho client mới login
-        ws.send(JSON.stringify({ id : uuidv4(), type: 'assign', data: playerInfor}));
+        ws.send(JSON.stringify({ type: 'assign', data: playerInfor}));
         
         // Cập nhật số người đang online cho tất cả client
         for (const id in clients) {
-          clients[id].send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
+          clients[id].send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
         }
       }
 
@@ -66,14 +66,14 @@ wss.on('connection', (ws) => {
 
             const matchStatus = {
               matchId : matchId,
-              nextTurn : matches[matchId].nextTurn,
               tableSize : matches[matchId].tableSize,
-              moved : matches[matchId].move,
-              nextMark : matches[matchId].nextMark
+              nextTurn : matches[matchId].nextTurn,
+              nextMark : matches[matchId].nextMark,
+              moved : matches[matchId].moved
             }
             
-            ws.send(JSON.stringify({ id : uuidv4(), type: 'match_start', data : {enemyInfor: waitingChair, matchStatus} }));
-            clients[waitingChair.id].send(JSON.stringify({ id : uuidv4(), type: 'match_start', data : {enemyInfor: playerInfor, matchStatus} }));
+            ws.send(JSON.stringify({ type: 'match_start', data : {enemyInfor: waitingChair, matchStatus} }));
+            clients[waitingChair.id].send(JSON.stringify({ type: 'match_start', data : {enemyInfor: playerInfor, matchStatus} }));
             
             waitingChair = null;
           } 
@@ -87,31 +87,36 @@ wss.on('connection', (ws) => {
         }
       }
 
-      if (action == 'tick') {
+      if (action == 'move') {
         if (matches[data.matchId] && data.playerId == matches[data.matchId].idA || data.playerId == matches[data.matchId].idB) {
-          if (matches[data.matchId].turn == data.playerId && matches[data.matchId].table[data.position.x][data.position.y] == '') {
-            matches[data.matchId].table[data.position.x][data.position.y] = matches[data.matchId].tick;
-            matches[data.matchId].turn = matches[data.matchId].turn == matches[data.matchId].idA ? matches[data.matchId].idB : matches[data.matchId].idA;
-            matches[data.matchId].tick = matches[data.matchId].tick == 'X' ? 'O' : 'X';
+          if (matches[data.matchId].nextTurn == data.playerId && getCell(data.matchId, data.position) == '') {
+            matches[data.matchId].moved.push({
+              playerId : data.playerId,
+              position : data.position,
+              mark : matches[data.matchId].nextMark
+            });
+            matches[data.matchId].nextTurn = matches[data.matchId].nextTurn == matches[data.matchId].idA ? matches[data.matchId].idB : matches[data.matchId].idA;
+            matches[data.matchId].nextMark = matches[data.matchId].nextMark == 'X' ? 'O' : 'X';
 
-            console.log(checkWin(data.matchId, data.position, 3));
+            console.log(checkWin(data.position, matches[data.matchId].moved, 3));
 
-            const winnerId = checkWin(data.matchId, data.position, 5) ? data.playerId : null;
-
+            const winner = checkWin(data.position, matches[data.matchId].moved, 3);
+            
             const message = {
-              id : uuidv4(),
               type : 'match_update',
-              matchStatus : {
-                table : matches[data.matchId].table,
-                turn : matches[data.matchId].turn,
-                tick : matches[data.matchId].tick,
-                winnerId
+              data : {
+                ...matches[data.matchId],
+                winner : winner ? {
+                  id : data.playerId,
+                  ...winner
+                } : null
               }
             }
-            
+
             clients[matches[data.matchId].idA].send(JSON.stringify(message));
             clients[matches[data.matchId].idB].send(JSON.stringify(message));
-
+            
+            if (winner) removeMatch(data.matchId);
           }
         }
       }
@@ -143,7 +148,7 @@ wss.on('connection', (ws) => {
 
       // Cập nhật số người đang online cho tất cả client
       for (const id in clients) {
-        clients[id].send(JSON.stringify({ id : uuidv4(), type: 'online_num', data : {num:Object.keys(players).length} }));
+        clients[id].send(JSON.stringify({ type: 'online_num', data : {num:Object.keys(players).length} }));
       }
     });
 

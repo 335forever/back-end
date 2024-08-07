@@ -10,59 +10,21 @@ function newMatch(playerA, playerB) {
         idB : playerB.id,
         nextTurn : Math.random() < 0.5 ? playerA.id : playerB.id,
         tableSize: { m:8 , n:8 },
-        move : [],
+        moved : [],
         nextMark: 'X'
     }
 
     return matchId;
 }
 
-function checkWin(matchId, point, length) {
-    const table = matches[matchId].table;
-    const m = table.length;
-    const n = table[0].length;
+function getCell(matchId, position) {
+    const moved = matches[matchId].moved
+    for (let move of moved) 
+        if (move.position.x == position.x && move.position.y == position.y) return move.mark;
     
-    const line1 = [];
-    const line2 = [];
-    const line3 = [];
-    const line4 = [];
-
-    let x = point.x;
-    let y = point.y;
-
-    // Lay line 1 ra
-    for (let i = 0; i < n; i++) line1.push(table[x][i]);
-    
-    // Lay line 2 ra
-    for (let i = 0; i < m; i++) line2.push(table[i][y]);
-    
-    // Lay line 3 ra
-    const start = {x,y}
-    while (start.x > 0 && start.y > 0) {
-        start.x = start.x - 1;
-        start.y = start.y - 1;
-    }    
-    while (start.x < m && start.y < n) {
-        line3.push(table[start.x][start.y]);
-        start.x = start.x + 1;
-        start.y = start.y + 1;
-    }
-
-    // Lay line 4 ra
-    const begin = {x,y}
-    while (begin.x < m - 1 && begin.y > 0) {
-        begin.x = begin.x + 1;
-        begin.y = begin.y - 1;
-    }   
-    while (begin.x >= 0 && begin.y < n) {
-        line4.push(table[begin.x][begin.y]);
-        begin.x = begin.x - 1;
-        begin.y = begin.y + 1;
-    }
-        
-    return findLineWin(line1, length) || findLineWin(line2, length) || findLineWin(line3, length) || findLineWin(line4, length);
+    return '';
 }
-     
+   
 function removeMatch(matchId) {
     delete matches[matchId];
 }
@@ -87,46 +49,87 @@ function findMatch(playerId) {
     return null;
 }
 
-function formatTable(table,m,n) {
-    let cell = 0;
-    const rows = [];
-    for (let i = 0; i < m; i++) {
-        const row = [];
-        for (let j = 0; j < n; j++) {
-            if (table[cell]) row.push(table[cell]);
-            else row.push(null);
-            cell++;
+function getMarkAt(position, moved) {
+    for (let move of moved) {
+        if (position.x === move.position.x && position.y === move.position.y) {
+            return move.mark
         }
-        rows.push(row);
     }
-    return rows;
+    return '-'
 }
 
-function findLineWin(line, n) {
-    // let stringLine = '';
-    // for (let i = 0; i < line.length; i++) {
-    //     if (line[i]) stringLine += line[i];
-    //     else stringLine += ' ';
-    // }
+function getLinesAt(position, moved, lineLength) {
+    const line1 = {
+        positions : [],
+        line : ''
+    };
+    const line2 = {
+        positions : [],
+        line : ''
+    };
+    const line3 = {
+        positions : [],
+        line : ''
+    };
+    const line4 = {
+        positions : [],
+        line : ''
+    };
 
-    const stringLine = line.reduce( (string, cell) => {
-        return string + (cell ? cell : ' ')
-    }, '')
 
-    const regex = new RegExp(`(O{${n}}|X{${n}})`);
-    const winLineStart = stringLine.search(regex);
-    if (winLineStart !== -1) return stringLine[winLineStart];
-    else return null;
+    for (let j = position.y - lineLength + 1 ; j <= position.y + lineLength - 1 ; j++) {
+        line1.positions.push({x:position.x,y:j});
+        line1.line += getMarkAt({x:position.x,y:j}, moved);
+        
+        line3.positions.push({x:j + position.x - position.y,y:j});
+        line3.line += getMarkAt({x:j + position.x - position.y,y:j}, moved);
+    };
+    
+    for (let i = position.x - lineLength + 1 ; i <= position.x + lineLength - 1 ; i++) {
+        line2.positions.push({x:i,y:position.y});
+        line2.line += getMarkAt({x:i,y:position.y}, moved);
+        
+        line4.positions.push({x:i,y:- i + position.x + position.y});
+        line4.line += getMarkAt({x:i,y:- i + position.x + position.y}, moved);
+    };
+    
+    return {line1, line2, line3, line4};
 }
 
-function creatBlankTable(m,n) {
-    const rows = []
-    for (let i = 0; i < m; i++) {
-        const row = []
-        for (let j = 0; j < n; j++) row.push('')
-        rows.push(row)   
+function isLineWin(line, lineLength) {
+    const regex = new RegExp(`(O{${lineLength}}|X{${lineLength}})`);
+    const winLineStart = Number(line.line.search(regex));
+    if (winLineStart !== -1) {
+        return {
+            mark : line.line[winLineStart],
+            range : {
+                start : winLineStart,
+                end : winLineStart + Number(lineLength) - 1
+            }
+        };
     }
-    return rows;
+    return null;
+}
+
+function checkWin(position, moved, lineLength) {
+    const lines = getLinesAt({x:position.x,y:position.y}, moved, lineLength);
+    let winCellPositions = [];
+    let mark = '';
+    
+    for (let index in lines) {
+        const winLine = isLineWin(lines[index], lineLength);
+        if (winLine) {
+            mark = winLine.mark;
+            for (let i = winLine.range.start ; i <= winLine.range.end ; i++) winCellPositions.push(lines[index].positions[i]);  
+        }   
+    }
+
+    if (mark) return {
+        mark,
+        winCellPositions
+    }
+    
+    return null;
 }
 
 module.exports = {
@@ -136,6 +139,6 @@ module.exports = {
     findEnemyId,
     findMatch,
     checkWin,
-    findLineWin
+    getCell
 }
 
